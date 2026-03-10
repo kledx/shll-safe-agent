@@ -1,161 +1,133 @@
-# SafeAgent — Autonomous DeFi Agent with On-Chain Risk Parameters
+# SafeAgent - WDK Wallet + SHLL On-Chain Safety
 
-> **Hackathon Entry** — Tether Hackathon Galactica: WDK Edition 1
-> **Track** — Autonomous DeFi Agent
-> **Team** — SHLL Protocol
+> **Hackathon Entry** - Tether Hackathon Galactica: WDK Edition 1  
+> **Track** - Autonomous DeFi Agent  
+> **Team** - SHLL Protocol
 
-## What is SafeAgent?
+## What changed
 
-SafeAgent is an autonomous DeFi agent on BNB Chain. Unlike typical AI agents that rely on prompt-based safety rules (easily bypassed by prompt injection), SafeAgent reads its risk parameters from **immutable on-chain smart contracts**.
+SafeAgent now uses the stronger B-scheme execution path:
 
-| Component | Technology | Role |
-|---|---|---|
-| **Wallet + Execution** | [WDK](https://docs.wdk.tether.io/) (Tether) | Non-custodial wallet, swap, transfer, balance |
-| **Risk Parameters** | [SHLL](https://shll.run) PolicyGuard | On-chain spending limits, cooldowns (tamper-proof) |
-| **Brain** | AI (GPT-4o) via Vercel AI SDK | Autonomous reasoning with MCP tool calling |
+`WDK wallet -> AgentNFA.execute() -> SHLL PolicyGuard -> AgentAccount vault -> protocol / receiver`
+
+That means:
+
+- WDK still signs transactions and pays gas
+- SHLL still owns the on-chain policy boundary
+- direct WDK write tools are blocked from the LLM
+- `safe_swap`, `safe_transfer`, `safe_lend`, and `safe_redeem` are the write paths exposed to the model
+
+## Why this matters
+
+The older design relied on the model to read `shll_policies` and then voluntarily avoid unsafe actions.
+That is useful, but it is still a soft control.
+
+This version moves the write path behind SHLL's existing on-chain execution boundary:
+
+- `AgentNFA.execute()` validates through `PolicyGuard`
+- `AgentAccount` holds the trading funds
+- `PolicyGuard.commit()` updates post-trade policy state
+
+If a trade, transfer, lend, or redeem action violates policy, the transaction reverts on-chain.
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    SafeAgent Orchestrator                      │
-│                  (Vercel AI SDK + LLM Brain)                   │
-│                                                                │
-│  ┌─────────────────────────┐  ┌────────────────────────────┐  │
-│  │  WDK MCP Server         │  │  SHLL MCP Server           │  │
-│  │  Wallet + Execution     │  │  On-Chain Policy Oracle    │  │
-│  │                         │  │                            │  │
-│  │  • getAddress            │  │  • policies (read limits)  │  │
-│  │  • getBalance            │  │  • status (readiness)      │  │
-│  │  • getTokenBalance       │  │  • portfolio (holdings)    │  │
-│  │  • quoteSwap             │  │  • price (DexScreener)     │  │
-│  │  • swap    ← EXECUTES   │  │  • history (audit trail)   │  │
-│  │  • transfer ← EXECUTES  │  │  • config (risk params)    │  │
-│  └─────────────────────────┘  └────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
-          │                             │
-          ▼                             ▼
-    WDK Wallet (BIP-39)          SHLL PolicyGuard Contract
-    Holds funds, signs tx        Immutable risk parameters
-    on BSC mainnet               on BSC mainnet
-```
+```text
+Read path:
+  WDK getBalance / quoteSwap
+  SHLL status / policies / portfolio / lending_info
 
-**Flow**: `Read policies (SHLL) → AI decision → Execute (WDK) → Verify (WDK)`
+Write path:
+  safe_swap
+    -> WDK callContract
+    -> AgentNFA.execute / executeBatch
+    -> PolicyGuard.validate
+    -> AgentAccount.executeCall
+    -> PancakeSwap
+    -> PolicyGuard.commit
 
-## Why On-Chain Risk Parameters?
+  safe_transfer
+    -> WDK callContract
+    -> AgentNFA.execute
+    -> PolicyGuard.validate
+    -> AgentAccount.executeCall
+    -> recipient / token contract
+    -> PolicyGuard.commit
 
-Most AI agents hardcode safety rules in system prompts:
+  safe_lend
+    -> WDK callContract
+    -> AgentNFA.execute / executeBatch
+    -> PolicyGuard.validate
+    -> AgentAccount.executeCall
+    -> Venus vToken mint
+    -> PolicyGuard.commit
 
-```
-// Typical AI agent (unsafe)
-system_prompt = "Never spend more than 0.1 BNB per trade"
-// ↑ Can be overridden by prompt injection
-```
-
-SafeAgent reads limits from blockchain contracts:
-
-```
-// SafeAgent (tamper-proof)
-shll_policies() → { spendingLimit: { maxPerTx: "0.05 BNB" } }
-// ↑ Stored on-chain, only NFT owner can modify via BscScan
+  safe_redeem
+    -> WDK callContract
+    -> AgentNFA.execute
+    -> PolicyGuard.validate
+    -> AgentAccount.executeCall
+    -> Venus redeemUnderlying
+    -> PolicyGuard.commit
 ```
 
-| | Prompt-Based Safety | SafeAgent (On-Chain Policy) |
-|---|---|---|
-| Storage | System prompt (text) | Smart contract (bytecode) |
-| Modifiable by AI? | ✅ Yes (prompt injection) | ❌ No (on-chain, owner-only) |
-| Auditable? | ❌ Not publicly | ✅ BscScan verifiable |
-| Access control | Single key | NFT Owner + Operator separation |
+## Current write surface
 
-## Safety Protocol
+### Allowed
+- `safe_swap`
+- `safe_transfer`
+- `safe_lend`
+- `safe_redeem`
 
-Every trade follows: **READ → DECIDE → EXECUTE → VERIFY**
+### Blocked from the LLM
+- `wdk_swap`
+- `wdk_transfer`
+- `wdk_sendTransaction`
+- `wdk_bridge`
+- `wdk_callContract`
+- `wdk_sign`
+- SHLL direct write tools such as `shll_lend`, `shll_redeem`, and `shll_execute_calldata`
 
-1. **READ** — Call `shll_policies` to get on-chain risk parameters
-2. **DECIDE** — Compare intended action against limits:
-   - SpendingLimit: Does amount exceed per-tx or daily cap?
-   - CooldownPolicy: Has enough time passed since last trade?
-3. **EXECUTE** — If compliant, execute via WDK (`wdk_swap` / `wdk_transfer`)
-4. **VERIFY** — Check updated balances via `wdk_getBalance`
-
-If any check fails → agent refuses and suggests a compliant alternative.
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js ≥ 20
-- OpenAI API key
-- BNB in WDK wallet (for real trades)
-
-### Setup
+## Run
 
 ```bash
-# Clone SafeAgent
-git clone https://github.com/kledx/shll-safe-agent.git
-cd shll-safe-agent
-npm install
-
-# Clone WDK MCP Toolkit (sibling directory)
-cd ..
-git clone https://github.com/tetherto/wdk-mcp-toolkit.git
-cd wdk-mcp-toolkit
-npm install
-npm install @tetherto/wdk-wallet-evm @tetherto/wdk-protocol-swap-velora-evm
-
-# Configure
-cd ../shll-safe-agent
-cp .env.example .env
-# Edit .env: WDK_SEED, OPENAI_API_KEY, SHLL_TOKEN_ID
-```
-
-### Run
-
-```bash
-# Smoke test (no API key needed)
+npm run test:unit
 npm run test:smoke
-
-# Demo scenarios (needs OPENAI_API_KEY)
-npm run demo:safe-swap          # Swap within limits
-npm run demo:spending-limit     # Exceeds limit → agent refuses
-npm run demo:portfolio          # Portfolio analysis
-
-# Custom prompt
-npm start "Check my balance and swap 0.01 BNB to USDT"
+npm run demo:safe-swap
+npm run demo:spending-limit
+npm run demo:safe-transfer
+npm run demo:safe-transfer-rejection
+npm run demo:safe-lend
+npm run demo:safe-lend-rejection
+npm run demo:safe-redeem
+npm run demo:safe-redeem-rejection
 ```
 
-## Demo Scenarios
+## Demo scenarios
 
-### 1. Safe Swap ✅
-Agent reads policies → amount within SpendingLimit → executes via WDK Velora → verifies balance.
+### Success demos
+- `demo:safe-swap` - normal swap path through PolicyGuard
+- `demo:safe-transfer` - normal vault transfer path through PolicyGuard
+- `demo:safe-lend` - normal Venus supply path through PolicyGuard
+- `demo:safe-redeem` - normal Venus redeem path through PolicyGuard
 
-### 2. Spending Limit Rejection ❌→✅
-Agent reads policies → amount exceeds maxPerTx → refuses → suggests compliant amount.
+### Rejection demos
+- `demo:spending-limit` - oversized swap rejected on-chain
+- `demo:safe-transfer-rejection` - likely ReceiverGuard-style rejection to an unapproved recipient
+- `demo:safe-lend-rejection` - oversized Venus supply intended to trigger policy or execution rejection
+- `demo:safe-redeem-rejection` - oversized Venus redeem intended to demonstrate failure classification
 
-### 3. Portfolio Analysis 📊
-Agent checks WDK balances + SHLL portfolio → analyzes holdings → suggests yield strategy.
+## Notes
 
-## OpenClaw Compatibility
+- For BNB-in swaps, the outer WDK transaction sends **zero** native value to `AgentNFA`
+- the swap amount lives inside `Action.value`, which is spent from the SHLL vault
+- for ERC20-in swaps, SafeAgent batches `approve + swap` through `executeBatch`
+- for BNB transfers, the vault sends native value via `Action.value`
+- for ERC20 transfers, the vault calls the token contract's `transfer()` through `execute`
+- for Venus lending and redemption, SafeAgent currently supports `BNB`, `USDT`, and `USDC`
+- revert handling now distinguishes likely PolicyGuard rejections from generic target-protocol execution failures
 
-SHLL is published as an OpenClaw/ClawHub skill ([shll-skills@6.0.5](https://www.npmjs.com/package/shll-skills)):
-- MCP Server compatible with OpenClaw, Claude, Cursor
-- 26 DeFi tools for BSC operations
+## Next step
 
-## Tech Stack
-
-- **Runtime**: Node.js ESM
-- **AI**: [Vercel AI SDK](https://sdk.vercel.ai/) + OpenAI GPT-4o
-- **Wallet**: [WDK MCP Toolkit](https://github.com/tetherto/wdk-mcp-toolkit) v1.0.0-beta.1
-- **Safety**: SHLL PolicyGuard smart contracts on BSC
-- **Protocol**: MCP (Model Context Protocol)
-
-## On-Chain Contracts
-
-- [PolicyGuard](https://bscscan.com/address/0x25d17eA0e3Bcb8CA08a2BFE917E817AFc05dbBB3)
-- [AgentNFA (ERC-8004)](https://bscscan.com/address/0x71cE46099E4b2a2434111C009A7E9CFd69747c8E)
-- [SHLL Protocol](https://shll.run)
-- [WDK Documentation](https://docs.wdk.tether.io/)
-
-## License
-
-MIT
+This repo now implements four B-scheme write paths plus a rejection-demo suite for hackathon recording.
+The C-scheme upgrade path (`ERC-4337 / session key / paymaster`) is documented at the Program level and can be layered on top without changing the core SHLL safety boundary.

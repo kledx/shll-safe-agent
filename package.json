@@ -1,21 +1,34 @@
 {
   "name": "shll-safe-agent",
   "version": "1.0.0",
-  "description": "SafeAgent — Autonomous DeFi Agent with On-Chain Safety Governance (OpenClaw + WDK + SHLL)",
+  "description": "SafeAgent - Autonomous DeFi Agent with On-Chain Safety Governance (OpenClaw + WDK + SHLL)",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "test": "npm run test:unit && npm run test:smoke",
+    "test:unit": "node --test test/safe-tools.test.js",
     "test:smoke": "node test/smoke.js",
     "demo:safe-swap": "node src/scenarios/safe-swap.js",
     "demo:spending-limit": "node src/scenarios/spending-limit.js",
+    "demo:safe-transfer": "node src/scenarios/safe-transfer.js",
+    "demo:safe-transfer-rejection": "node src/scenarios/safe-transfer-rejection.js",
+    "demo:safe-lend": "node src/scenarios/safe-lend.js",
+    "demo:safe-lend-rejection": "node src/scenarios/safe-lend-rejection.js",
+    "demo:safe-redeem": "node src/scenarios/safe-redeem.js",
+    "demo:safe-redeem-rejection": "node src/scenarios/safe-redeem-rejection.js",
     "demo:portfolio": "node src/scenarios/portfolio.js"
   },
   "dependencies": {
-    "ai": "^6.0.0",
     "@ai-sdk/openai": "^3.0.0",
     "@modelcontextprotocol/sdk": "^1.23.0",
-    "zod": "^4.0.0",
-    "dotenv": "^16.4.0"
+    "@tetherto/wdk-mcp-toolkit": "github:tetherto/wdk-mcp-toolkit",
+    "@tetherto/wdk-protocol-bridge-usdt0-evm": "^1.0.0-beta.2",
+    "@tetherto/wdk-protocol-swap-velora-evm": "^1.0.0-beta.4",
+    "@tetherto/wdk-wallet-evm": "^1.0.0-beta.8",
+    "ai": "^6.0.0",
+    "dotenv": "^16.4.0",
+    "ethers": "^6.15.0",
+    "zod": "^4.0.0"
   },
   "keywords": ["wdk", "tether", "shll", "defi", "agent", "mcp", "openclaw"],
   "license": "MIT"

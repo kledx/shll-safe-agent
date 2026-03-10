@@ -27,7 +27,7 @@ function fail (label, err) {
 async function testWdkServer () {
   console.log('\n═══ Test 1: WDK MCP Server ═══')
 
-  const serverPath = path.resolve(__dirname, '..', '..', 'wdk-mcp-toolkit', 'examples', 'bsc', 'index.js')
+  const serverPath = path.resolve(__dirname, '..', 'src', 'wdk-bsc-server', 'index.js')
   console.log(`  Server path: ${serverPath}`)
 
   let client
@@ -39,6 +39,7 @@ async function testWdkServer () {
         PATH: process.env.PATH,
         WDK_SEED: process.env.WDK_SEED || TEST_SEED,
         BSC_RPC: 'https://bsc-dataseed1.binance.org',
+        WDK_TOOLKIT_ROOT: path.resolve(__dirname, '..', '..', 'wdk-mcp-toolkit'),
       },
     })
 
@@ -52,6 +53,12 @@ async function testWdkServer () {
     // Show tool names
     const toolNames = tools.tools.map(t => t.name)
     console.log(`  Tools: ${toolNames.join(', ')}`)
+
+    if (toolNames.includes('callContract')) {
+      ok("Tool 'callContract' available")
+    } else {
+      fail("Tool 'callContract' missing", 'safe_swap requires custom WDK contract-call support')
+    }
 
     // Test getAddress
     const addrResult = await client.callTool({ name: 'getAddress', arguments: { chain: 'bnb' } })
