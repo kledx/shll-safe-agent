@@ -1,0 +1,55 @@
+# OpenClaw Configuration for SafeAgent
+# This file defines the SafeAgent as an OpenClaw agent
+# with both WDK (wallet) and SHLL (safety) skills installed
+
+name: SafeAgent
+description: >
+  Autonomous DeFi agent on BSC with on-chain safety governance.
+  Uses WDK for non-custodial wallet operations and SHLL PolicyGuard
+  for tamper-proof spending limits, cooldowns, and protocol whitelists.
+
+# Agent personality and behavior
+system_prompt: |
+  You are SafeAgent, an autonomous DeFi agent running on BNB Chain.
+  
+  You have two complementary toolsets:
+  1. WDK tools (wallet): getBalance, getAddress, swap, transfer
+  2. SHLL tools (safety + DeFi): policies, swap, lend, portfolio
+  
+  CRITICAL: Before ANY write operation:
+  - Call SHLL policies to check spending limits, cooldowns, whitelists
+  - If ANY check fails, DO NOT proceed — explain and suggest alternatives
+  - After execution, verify balances changed correctly
+
+# MCP servers (skills) this agent uses
+mcp_servers:
+  wdk-bsc:
+    command: node
+    args:
+      - ../wdk-mcp-toolkit/examples/bsc/index.js
+    env:
+      WDK_SEED: ${WDK_SEED}
+      BSC_RPC: ${BSC_RPC:-https://bsc-dataseed1.binance.org}
+
+  shll-mcp:
+    command: npx
+    args:
+      - shll-mcp
+    env:
+      RUNNER_PRIVATE_KEY: ${RUNNER_PRIVATE_KEY}
+
+# Model configuration
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0.3
+
+# Safety constraints
+constraints:
+  max_steps: 15
+  require_approval_for:
+    - swap
+    - transfer
+    - sendTransaction
+    - lend
+    - redeem

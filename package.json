@@ -1,0 +1,21 @@
+{
+  "name": "shll-safe-agent",
+  "version": "1.0.0",
+  "description": "SafeAgent — Autonomous DeFi Agent with On-Chain Safety Governance (OpenClaw + WDK + SHLL)",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "demo:safe-swap": "node src/scenarios/safe-swap.js",
+    "demo:spending-limit": "node src/scenarios/spending-limit.js",
+    "demo:portfolio": "node src/scenarios/portfolio.js"
+  },
+  "dependencies": {
+    "ai": "^6.0.0",
+    "@ai-sdk/openai": "^3.0.0",
+    "@modelcontextprotocol/sdk": "^1.23.0",
+    "zod": "^4.0.0",
+    "dotenv": "^16.4.0"
+  },
+  "keywords": ["wdk", "tether", "shll", "defi", "agent", "mcp", "openclaw"],
+  "license": "MIT"
+}
