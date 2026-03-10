@@ -18,7 +18,8 @@ export async function createWdkClient () {
     command: 'node',
     args: [serverPath],
     env: {
-      ...process.env,
+      PATH: process.env.PATH,
+      NODE_PATH: process.env.NODE_PATH || '',
       WDK_SEED: config.wdkSeed,
       BSC_RPC: config.bscRpc,
     },
@@ -42,9 +43,10 @@ export async function createShllClient () {
 
   const transport = new StdioClientTransport({
     command: 'npx',
-    args: [config.shllMcpCommand],
+    args: ['-y', config.shllMcpCommand],
     env: {
-      ...process.env,
+      PATH: process.env.PATH,
+      NODE_PATH: process.env.NODE_PATH || '',
       RUNNER_PRIVATE_KEY: config.runnerPrivateKey,
     },
   })

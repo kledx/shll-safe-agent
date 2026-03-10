@@ -65,10 +65,19 @@ The agent checks 4 on-chain policies before ANY write operation:
 
 ```bash
 # Clone and install
-cd repos/shll-safe-agent
+git clone https://github.com/kledx/shll-safe-agent.git
+cd shll-safe-agent
 npm install
 
+# Clone WDK MCP Toolkit (required as sibling repo)
+cd ..
+git clone https://github.com/tetherto/wdk-mcp-toolkit.git
+cd wdk-mcp-toolkit
+npm install
+npm install @tetherto/wdk-wallet-evm @tetherto/wdk-protocol-swap-velora-evm
+
 # Configure
+cd ../shll-safe-agent
 cp .env.example .env
 # Edit .env with your WDK_SEED, OPENAI_API_KEY, etc.
 ```
@@ -126,7 +135,7 @@ SHLL is published as an OpenClaw/ClawHub skill ([shll-skills@6.0.5](https://www.
 - [SHLL Protocol](https://shll.run)
 - [WDK Documentation](https://docs.wdk.tether.io/)
 - [PolicyGuard on BscScan](https://bscscan.com/address/0x25d17eA0e3Bcb8CA08a2BFE917E817AFc05dbBB3)
-- [SHLL AgentNFA (BAP-578)](https://bscscan.com/address/0x...)
+- [SHLL AgentNFA (ERC-8004)](https://bscscan.com/address/0x71cE46099E4b2a2434111C009A7E9CFd69747c8E)
 
 ## License
 
