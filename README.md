@@ -17,26 +17,30 @@ SafeAgent is an autonomous DeFi agent that trades on BNB Chain with **on-chain s
 ## Architecture
 
 ```
-┌────────────────────────────────────────────────────────┐
-│              SafeAgent Orchestrator                     │
-│           (Vercel AI SDK + LLM)                         │
-│                                                         │
-│  ┌──────────────────┐  ┌────────────────────────────┐  │
-│  │  WDK MCP Server  │  │  SHLL MCP Server           │  │
-│  │  (Wallet Layer)   │  │  (Safety + DeFi Execution) │  │
-│  │                   │  │                             │  │
-│  │  • getAddress     │  │  • policies (PolicyGuard)   │  │
-│  │  • getBalance     │  │  • swap (on-chain validated)│  │
-│  │  • quoteSwap      │  │  • lend / redeem (Venus)    │  │
-│  │  • swap (Velora)  │  │  • portfolio / status       │  │
-│  │  • transfer       │  │  • 27 DeFi tools total      │  │
-│  └──────────────────┘  └────────────────────────────┘  │
-└────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                 SafeAgent Orchestrator                     │
+│              (Vercel AI SDK + LLM Brain)                   │
+│                                                            │
+│  ┌────────────────────────┐  ┌──────────────────────────┐ │
+│  │  WDK MCP Server        │  │  SHLL MCP Server         │ │
+│  │  Wallet + Execution    │  │  Safety Policy (Read)    │ │
+│  │                        │  │                          │ │
+│  │  • getAddress           │  │  • policies (read rules) │ │
+│  │  • getBalance           │  │  • status (readiness)    │ │
+│  │  • getTokenBalance      │  │  • portfolio (holdings)  │ │
+│  │  • quoteSwap            │  │  • price (DexScreener)   │ │
+│  │  • swap ← EXECUTES     │  │  • history (audit log)   │ │
+│  │  • transfer ← EXECUTES │  │  • tokens (mapping)      │ │
+│  └────────────────────────┘  └──────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
           │                          │
           ▼                          ▼
-    WDK Wallet (BIP-39)        SHLL Smart Contracts
-    on BSC mainnet             PolicyGuard + AgentNFA
+    WDK Wallet (BIP-39)        SHLL PolicyGuard (on-chain)
+    Holds funds, executes      SpendingLimit, Cooldown,
+    on BSC mainnet              DeFiGuard, ReceiverGuard
 ```
+
+**Flow**: `SHLL policies (read) → AI decision → WDK swap (execute) → WDK balance (verify)`
 
 ## Safety Protocol
 
