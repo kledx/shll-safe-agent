@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "test:smoke": "node test/smoke.js",
     "demo:safe-swap": "node src/scenarios/safe-swap.js",
     "demo:spending-limit": "node src/scenarios/spending-limit.js",
     "demo:portfolio": "node src/scenarios/portfolio.js"
